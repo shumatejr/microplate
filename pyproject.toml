@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "microplate"
+version = "1.2"
+dependencies = [
+	"numpy",
+]
+authors = [
+  { name="Justin Shumate", email="shumatejr@gmail.com" },
+]
+description = "A package for dealing with microtiter plates"
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "License :: OSI Approved :: MIT License",
+]
+
+
+[project.urls]
+Homepage = "https://github.com/shumatejr/microplate"
+Issues = "https://github.com/shumatejr/microplate/issues"
