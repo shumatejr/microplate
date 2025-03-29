@@ -2,8 +2,7 @@
 
 A Microtiter plate class for python, simplifying an internal array to the way 
 people usually reference/work with microtiter plates. Currently holds a name, 
-supports different densities (up to 3456), and can store arbitrary regions.
-
+supports arbitrary densities and stores arbitrary and non-contiguous regions.
 """
 import re
 import sys
@@ -41,53 +40,51 @@ class MTP:
 
     Attributes
     ----------
-    ROW_LABELS : List of str
-        Input row labels for microplates, based on personal experience. 
-    rows : int
+    name: str
+        Storage for string representation of microplate (eg barcode).
+    __rows : int
         Number of rows to store in the resulting microplate.
-    columns : int
+    __columns : int
         Number of columns to store in the resulting microplate.
-    blocks : int, optional
+    __blocks : int, optional
         Number of datablocks in the resulting microplate. Defaults to 1.
-    __regions : Dict of str or List[str]
+    __regions : Dict[str|List[str]]
         Contains region names which are arbitrary sections of the plate and
         the wells that are in each region. Regions can be set as a list of
         individual wells ['A1','A5','B3'], or as ranges ['A2:B6']
-    __arr : Numpy Matrix of floats
+    __arr : 3-dimensional Numpy NDArray
         Internal representation of the microplate data. Stored as a 3D Matrix
         where each slice of the matrix is a separate data block.
+    __index : Tuple[int, int]
+        Numpy internal representation of matrix index for iteration.
+    __iter : iterator
+        Numpy iterator for traversing matrix.
+    __iterate: bool
+        Stores whether iterator should continue to next value.
     """
-    
-    # Well labels for 3456-well plates and lower
-    ROW_LABELS = [
-        'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P',
-        'Q','R','S','T','U','V','W','X','Y','Z','AA','AB','AC','AD','AE','AF',
-        'AG','AH','AI','AJ','AK','AL','AM','AN','AO','AP','AQ','AR','AS','AT',
-        'AU','AV'
-    ]
     
     def __init__(self, rows: int, columns: int, 
                  blocks: int = 1, name: str = "plate", 
                  input_files: List[Tuple[str, str, int, int]] = None,):
         
-        self.rows = rows
-        self.columns = columns
+        self.__rows = rows
+        self.__cols = columns
         
         self.name = name
         self.__regions = {}
         
         # If no input is specified, create a microplate pre-filled with zeros
         if input_files is None:
-            self.blocks = blocks
-            self.__arr = np.zeros((self.blocks, self.rows, self.columns))
+            self.__blocks = blocks
+            self.__arr = np.zeros((self.__blocks, self.__rows, self.__cols))
         # In this instance, parse files to get contents of blocks
         else:
             # Support for multiple data blocks inside a file
-            self.blocks = len(input_files)
-            self.__arr = np.zeros((self.blocks, self.rows, self.columns))
+            self.__blocks = len(input_files)
+            self.__arr = np.zeros((self.__blocks, self.__rows, self.__cols))
             
             for block_num, data_block in enumerate(input_files):
-                self.__arr[block_num] = np.array(self.__parse_file(*data_block))
+                self.__arr[block_num] = np.array(self._parse_file(*data_block))
         
         # Iterator defaults to none because it breaks deepcopy otherwise
         self.__index = None
@@ -95,11 +92,11 @@ class MTP:
         self.__iterate = True
     
     # Internal method for parsing data from files during object construction
-    def __parse_file(self, file_path: str, delimiter: str, 
+    def _parse_file(self, file_path: str, delimiter: str, 
                      file_row: int, file_column: int) -> NDArray:
         
         # Initialize np matrix of appropriate size to store our data
-        data = np.zeros((self.rows,self.columns))
+        data = np.zeros((self.__rows,self.__cols))
         
         # Open the file at the file path
         with open(file_path, 'r') as file:
@@ -107,7 +104,7 @@ class MTP:
             for line_number, line in enumerate(file, start=1):
                 # Only consider rows within range of file_row to size of data
                 if (line_number >= file_row and 
-                    line_number <  file_row + self.rows):
+                    line_number <  file_row + self.__rows):
                     
                     # Break up the line by the specified delimiter
                     split_line = line.split(delimiter)
@@ -115,41 +112,108 @@ class MTP:
                     # Iterate through columsn to the desired column number
                     for column_number, value in enumerate(split_line, start=1):
                         if (column_number >= file_column and 
-                            column_number <  file_column + self.columns):
+                            column_number <  file_column + self.__cols):
                             
                             # Fail if non-numeric input is found in file
                             try:
                                 data[line_number-file_row, 
-                                        column_number-file_column] = value
+                                     column_number-file_column] = value
                             except ValueError:
-                                print("Invalid input. Check input parameters.")
+                                print(f"Invalid input in file {file_path}." 
+                                      f"Check delimiter/block location.")
                                 sys.exit(1)
         return data
     
-    # Internal method to convert well labels to numpy indices
-    def __well_transform(self,key: str) -> Tuple[int, int]:
-        # Extra up to two char letters for rows, two digit nums for columns
-        row_label_arr = re.findall("[A-Z]{1,2}", key)
-        col_label_arr = re.findall("[0-9]{1,2}", key)
+    # Internal checks for get/set
+    def _key_check(self, key) -> Tuple[str, int]:
+        # By default operate on the first block
+        block_num = 0
         
-        if len(row_label_arr) != 0:
-            row_label = self.ROW_LABELS.index(row_label_arr[0])
-        else:
-            row_label = -1
+        # If tuple passed, first part is key and second is block_num
+        if type(key) is tuple:
+            if (len(key) == 2 and isinstance(key[1], int) 
+                and key[1] > 0 and key[1] <= self.__blocks):
+                # Well is first element of tuple, block_num second
+                key, block_num = key
+                block_num -= 1
+            else:
+                raise ValueError(f"Invalid Input {key}")
+        # Ensure key is a str
+        if not type(key) is str:
+            raise TypeError(f"{key} must be of type str")
+        # Ensure no invalid characters in key
+        if re.search("[^A-Z0-9:]", key):
+            raise ValueError(f"Invalid characters in {key}")
         
-        if len(col_label_arr) != 0:
-            col_label = int(col_label_arr[0]) - 1
-        else:
-            col_label = -1
-        
-        return row_label, col_label
+        return key, block_num
     
-    # Return slices based on the defined regions
-    # def __range_transform(self, first_well: str, second_well: str):
-        # (row_1,col_1) = self.__well_transform(first_well)
-        # (row_2,col_2) = self.__well_transform(second_well)
+    # Convert an input well representation into equivalent array slices
+    def _well_transform(self,key: str) -> Tuple[object, object]:
         
-        # return slice(row_1, row_2+1), slice(col_1, col_2+1)
+        row_arr = [0, self.__rows, None]
+        col_arr = [0, self.__cols, None]
+        
+        for index, value in enumerate(key.split(":")):
+            row = re.search("[A-Z]{1,2}", value)
+            col = re.search("[0-9]{1,2}", value)
+            
+            if row: row_arr[index] = self.row_to_index(row.group())-1 + index
+            if col: col_arr[index] = int(col.group())-1 + index
+        
+        # For single well searches, end of slice needs to be incremented
+        if row: row_arr[index+1] = row_arr[index] + 1
+        if col: col_arr[index+1] = col_arr[index] + 1
+        
+        return slice(row_arr[0], row_arr[1]), slice(col_arr[0], col_arr[1])
+    
+    # Overloaded list operations for retrieving/setting microplate data
+    def __getitem__(self, key) -> NDArray:
+        wells, block_num = self._key_check(key)
+        rows, cols = self._well_transform(wells)
+        return self.__arr[block_num, rows, cols]
+    def __setitem__(self, key, value):
+        wells, block_num = self._key_check(key)
+        rows, cols = self._well_transform(wells)
+        self.__arr[block_num, rows, cols] = value
+    def __delitem__(self, key):
+        self.__setitem__(key, 0)
+    
+    # Custom string representation of a MTP for printing
+    def __str__(self):
+        # Two decimal limit on print
+        row_matrix = np.array2string(
+            self.__arr + 0.0, # 0.0 is added to eliminate -0.0 from display
+            formatter={"float_kind": lambda x: "%.2f" % x}, 
+            max_line_width = 99999, 
+            threshold=1536,
+        )
+        return (f"{self.name}\n#Blocks:{self.__blocks} #Rows:{self.__rows} " 
+                f"#Columns:{self.__cols}\n{row_matrix}\n")
+    
+    # Overloaed operations for iterator support of plate (uses numpy.nditer)
+    def __call__(self, block: int = 1):
+        self.__iter = np.nditer(self.__arr[block-1], flags=["multi_index"])
+        return self
+    def __iter__(self):
+        return self
+    def __next__(self):
+        if not self.__iterate:
+            # Reset iterator to default values to enable deepcopy afterwards
+            self.__index = None
+            self.__iter = None
+            self.__iterate = True
+            raise StopIteration
+        
+        # iternext() automatically advances iterator, so call it last and store
+        self.__index = self.__iter.multi_index # Numpy internal tuple
+        well_value = self.__iter[0].item()
+        self.__iterate = self.__iter.iternext()
+        
+        # Output of the form "A1", 1, 1, Value
+        well_row = self.__index[0]+1
+        well_col = self.__index[1]+1
+        well = f"{self.index_to_row(well_row)}{well_col}"
+        return well, well_row, well_col, well_value
     
     def set_region(self, name: str, wells: str|List[str]):
         """Add a defined region to the microplate.
@@ -174,24 +238,22 @@ class MTP:
         ------
         TypeError
             If wells is not str or a List[str].
+        ValueError
+            Improper characters found in wells.
         """
-        
-        # Regex pattern to match anywhere from 'A1' to 'AA24:AP24'
-        # Note this can still fail later if something like PA24 is passed
-        regex_pattern = '^[A-Z]{1,2}\d{1,2}(:{1}[A-Z]{1,2}\d{1,2})?$'
         
         # Enforce type of str or List[str], individual str is converted to list
         if type(wells) is str:
             wells = [wells]
         if type(wells) is list and all(type(well) is str for well in wells):
             
-            # Check if all the wells in the list match the pattern
-            if all(re.match(regex_pattern, well) for well in wells):
-                self.__regions[name] = wells
+            # Check if all the sections of the region have valid characters
+            if any(re.search("[^A-Z0-9:]", well) for well in wells):
+                raise ValueError(f"Invalid well label in {wells}.")
             else:
-                raise TypeError
+                self.__regions[name] = wells
         else:
-            raise TypeError
+            raise TypeError(f"{wells} must be of type str or list[str].")
     
     def get_region(self, name: str, block: int = 1) -> NDArray:
         """Retrieve a previously set region as a 1D array.
@@ -204,45 +266,47 @@ class MTP:
             Data block number to use when retrieving wells.
         
         Returns
-        ------
+        -------
         NDArray
             1D Numpy array of wells specified in the region.
         """
         # Check if block accessed is within the range
-        if block < 1 or block > self.blocks:
-            raise ValueError
+        if block < 1 or block > self.__blocks:
+            raise ValueError("Invalid block number.")
         
+        # Retrieve the wells in the region (this will fail for invalid region)
         well_list = self.__regions[name]
-        # Numpy array instead? Numpy prefers preallocated size.
-        value_list = []
         
-        # Parse each section and add it to the input
+        value_list = []
+        # Parse each region section and add it to the output list
         for wells in well_list:
-            # Well is a Range
-            if re.search(':', wells):
-                
-                result = wells.split(":")
-                (row_1,col_1) = self.__well_transform(result[0])
-                (row_2,col_2) = self.__well_transform(result[1])
-                
-                value_list.extend(self.__arr[block-1,
-                                             row_1:(row_2+1),
-                                             col_1:(col_2+1)
-                                            ].flatten().tolist())
-            # Single well
-            else:
-                (row, col) = self.__well_transform(wells)
-                value_list.append(self.__arr[block-1,row,col].tolist())
+            rows, cols = self._well_transform(wells)
+            value_list.extend(self.__arr[block-1,rows,cols].flatten().tolist())
+        
         return np.array(value_list)
     
-    # Check if all regions passed are valid, if not raise an exception
-    def _region_check(*args):
-        for region in args:
-            if not region in self.__regions:
-                raise ValueError(f"Region {region} does not exist")
-                
+    def add_block(self, num_blocks: int = 1):
+        """Create a new MTP that is normalized by z-score
+        
+        Parameters
+        ----------
+        num_blocks : int, optional
+            Add num_blocks data blocks to the plate.
+            
+        Raises
+        ------
+        ValueError
+            Num_blocks is not an int or is <= 0
+        """
+        if not type(num_blocks) is int or num_blocks <= 0:
+            raise ValueError(f"Improper number of blocks {num_blocks}")
+        
+        self.__blocks += num_blocks
+        self.__arr.resize(self.__blocks, self.__rows, self.__cols)
+    
     # IMPROVEMENT: repeated code in normalizations, create internal method?
-    def normalize_zscore(self, region_name: str = None, block: int = -1):
+    def normalize_zscore(self, region_name: str = None, 
+                         block: int = 0, df: int = 1):
         """Create a new MTP that is normalized by z-score
         
         Parameters
@@ -253,6 +317,8 @@ class MTP:
         block : int, optional
             Data block number to use when retrieving wells. If none specified,
             then all blocks of the MTP are normalized on a bock-by-block basis.
+        df : int, optional
+            Numpy degrees of freedom for standard deviation calculation.
         
         Returns
         ------
@@ -265,16 +331,14 @@ class MTP:
             If region does not exist, or if block is incorrect.
         """
         # Verify user input
-        if not type(block) is int or block > self.blocks:
-            raise ValueError
-        if not region_name is None and not region_name in self.__regions:
-            raise ValueError
+        if not type(block) is int or block > self.__blocks:
+            raise ValueError("Invalid block number")
         
         norm_plate = copy.deepcopy(self)
         
         # If no block is specified, perform normalization on by-block basis
         if  block <= 0:
-            block_range = range(self.blocks)
+            block_range = range(self.__blocks)
         # Otherwise, only normalize specified block
         else:
             block_range = [block-1]
@@ -295,12 +359,12 @@ class MTP:
                         norm_plate.__arr[block_num] 
                         - np.mean(self.get_region(region_name, block_num+1))
                     )
-                    / np.std(self.get_region(region_name, block_num+1), ddof=1)
+                    / np.std(self.get_region(region_name, block_num+1), ddof=df)
                 )
         return norm_plate
     
     def normalize_percent(self, region_high: str, region_low: str, 
-                          block: int = -1, method: str = 'median', 
+                          block: int = 0, method: str = "median", 
                           multiplier: int = 100, invert: bool = False):
         """Create a new MTP that is normalized on a percentage scale
         
@@ -333,16 +397,12 @@ class MTP:
             If regions do not exist, method does not exist, or block incorrect.
         """
         # Verify user input
-        if not type(block) is int or block > self.blocks:
-            raise ValueError
-        if not region_high in self.__regions:
-            raise ValueError
-        if not region_low in self.__regions:
+        if not type(block) is int or block > self.__blocks:
             raise ValueError
         
         # If no block is specified, perform normalization on by-block basis
         if  block <= 0:
-            block_range = range(self.blocks)
+            block_range = range(self.__blocks)
         # Otherwise, only normalize specified block
         else:
             block_range = [block-1]
@@ -350,7 +410,7 @@ class MTP:
         norm_plate = copy.deepcopy(self)
         
         for block_num in block_range:
-            if method == 'median':
+            if method == "median":
                 norm_plate.__arr[block_num] = multiplier * (
                     (
                         norm_plate.__arr[block_num] 
@@ -361,7 +421,7 @@ class MTP:
                         - np.median(self.get_region(region_low, block_num+1))
                     )
                 )
-            elif method == 'mean':
+            elif method == "mean":
                 norm_plate.__arr[block_num] = multiplier * (
                     (
                         norm_plate.__arr[block_num] 
@@ -372,7 +432,7 @@ class MTP:
                         - np.mean(self.get_region(region_low, block_num+1))
                     )
                 )
-            elif method == 'minmax':
+            elif method == "minmax":
                 norm_plate.__arr[block_num] = multiplier * (
                     (
                         norm_plate.__arr[block_num] 
@@ -392,127 +452,63 @@ class MTP:
         
         return norm_plate
     
-    # Overloaded list operations
-    # Get supports specific whole plate, row, column, or specific well
-    # IMPROVEMENT: There is a lot of duplicated code between get/set
-    def __getitem__(self, key):
-        # By default, return first data block, but if specified return block_num
-        block_num = 0
-        if type(key) is tuple:
-            if (len(key) == 2 and isinstance(key[1], int) 
-                and key[1] > 0 and key[1] <= self.blocks):
-                # Well is first element of tuple, block_num second
-                key, block_num = key
-                block_num -= 1
-            else:
-                raise  ValueError("Invalid Input")
+    # Convenient methods for converting row labels to index and vice versa
+    @staticmethod
+    def row_to_index(row: str) -> int:
+        """Convert a row label to a row number (starting with 1).
+        A -> 1; AA -> 27; AF -> 32
         
-        # Invalid Entry
-        if re.search('[^A-Z0-9:]', key):
-            raise ValueError("Invalid Input")
-        # Range search
-        elif re.search(':', key):
-            result = key.split(":")
-            
-            (row_1,col_1) = self.__well_transform(result[0])
-            (row_2,col_2) = self.__well_transform(result[1])
-            
-            return self.__arr[block_num,row_1:(row_2+1),col_1:(col_2+1)]
-        else:
-            (row,col) = self.__well_transform(key)
-            
-            # Give me the whole array as 1D
-            if row == -1 and col == -1: 
-                return self.__arr[block_num]
-            # Give me an entire row
-            elif row == -1: 
-                return self.__arr[block_num,:,col]
-            # Give me an entire column
-            elif col == -1: 
-                return self.__arr[block_num,row,:]
-            # Give me a well
-            else: 
-                return self.__arr[block_num,row,col]
-    
-    # Create an error_check function for the key to reduce duplication
-    # Refactor to set block_num, row, col to appropriat evalue (can set to :)
-    def __setitem__(self, key, value):
-        # By default, return first data block, but if specified return block_num
-        block_num = 0
-        if type(key) is tuple:
-            if (len(key) == 2 and isinstance(key[1], int) 
-                and key[1] > 0 and key[1] <= self.blocks):
-                # Well is first element of tuple, block_num second
-                key, block_num = key
-                block_num -= 1
-            else:
-                raise  ValueError("Invalid Input")
+        Parameters
+        ----------
+        row : str
+            Row label
         
-        # Invalid Entry
-        if re.search('[^A-Z0-9:]', key):
-            raise ValueError("Invalid Input")
-        # Range search
-        elif re.search(':', key):
-            result = key.split(":")
-            
-            (row_1,col_1) = self.__well_transform(result[0])
-            (row_2,col_2) = self.__well_transform(result[1])
-            
-            self.__arr[block_num,row_1:(row_2+1),col_1:(col_2+1)] = value
-        else:
-            (row,col) = self.__well_transform(key)
-            
-            # Give me the whole array as 1D
-            if row == -1 and col == -1: 
-                self.__arr[block_num] = value
-            # Give me an entire row
-            elif row == -1: 
-                self.__arr[block_num,:,col] = value
-            # Give me an entire column
-            elif col == -1: 
-                self.__arr[block_num,row,:] = value
-            # Give me a well
-            else: 
-                self.__arr[block_num,row,col] = value
+        Returns
+        -------
+        int
+            Integer representation of passed row string.
         
-    def __delitem__(self, key):
-        self.__setitem__(key, 0)
+        Raises
+        ------
+        ValueError
+            Input is not a letter.
+        """
+        row = str(row) # Convert to str representation
+        if re.search("[^A-Z]", row, re.IGNORECASE):
+            raise ValueError(f"Invalid characters in {row}")
         
-    # Custom string representation of a MTP
-    def __str__(self):
+        # Treat row label as base-26 and convert to base-10 int
+        sum = 0
+        for pos, ch in enumerate(reversed(row.upper())):
+            sum += (ord(ch)-ord('A')+1) * (26 ** pos)
+        return sum
+    @staticmethod
+    def index_to_row(row_index: int) -> str:
+        """Convert a row number (starting with 1) to a row label.
+        1 -> A; 27 -> AA; 32 -> AF
         
-        # Two decimal limit on print
-        row_matrix = np.array2string(
-            self.__arr + 0.0, # 0.0 is added to eliminate -0.0 from display
-            formatter={'float_kind': lambda x: "%.2f" % x}, 
-            max_line_width = 99999, 
-            threshold=1536,
-        )
+        Parameters
+        ----------
+        row_index : int
+            Row label
         
-        return f"{self.name}\n#Blocks:{self.blocks} #Rows:{self.rows} " \
-               f"#Columns:{self.columns}\n{row_matrix}\n"
-    
-    # Iterator addition
-    def index_to_well(self, row_index, column_index):
-        return f"{self.ROW_LABELS[row_index]}{column_index+1}"
-    # Utilize call to set up the iterator
-    def __call__(self, block: int = 1):
-        self.__iter = np.nditer(self.__arr[block-1], flags=['multi_index'])
-        return self
-    def __iter__(self):
-        return self
-    def __next__(self):
-        if not self.__iterate:
-            # Reset iterator to default values
-            self.__index = None
-            self.__iter = None
-            self.__iterate = True
-            
-            raise StopIteration
+        Returns
+        -------
+        str
+            String representation of input row_index.
         
-        # iternext() automatically advances iterator, so call it last and store
-        self.__index = self.__iter.multi_index
-        well_value = self.__iter[0]
-        self.__iterate = self.__iter.iternext()
+        Raises
+        ------
+        TypeError
+            Input is not an integer.
+        """
+        if not type(row_index) is int:
+            raise TypeError(f"{row_index} is not of type int.")
         
-        return (self.__index,self.index_to_well(*self.__index)), well_value
+        row = ""
+        while True:
+            remainder = (row_index-1) % 26
+            row_index = (row_index-1) // 26
+            row = chr(remainder + ord('A')) + row
+            if row_index == 0: break
+        return row
