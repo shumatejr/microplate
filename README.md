@@ -9,14 +9,16 @@ microtiter plate labels ('A1' or 'P5') rather than through array indices.
 ## Features
 
   - Import directly from files without any needed manipulation
-  - Arbitrary plate sizes up to 3456-wells.
-  - Simplified retrieval of microplate data by using traditional well labels,
-    rows/columns, or ranges.
+  - Arbitrary plate sizes supported (any number of rows/columns)
+  - Simplified storage/retrieval of microplate data by using traditional 
+    well labels, rows/columns, or ranges.
   - Multiple data block support for assays with multiple reads.
   - Store arbitrary regions in plates to simplify calculating plate statistics.
-  - Simple data normalization functions.
+  - Simple data normalization and statistic functions.
   - Iterator support to retrieve all data.
   - Easy view of plate data by printing the plate object.
+  - Metadata storage by well for plate.
+  - Hit cutoff and hit list retrieval based on microplate data.
 
 ## Source/Installation
 The source code is currently hosted on GitHub at:
@@ -99,16 +101,8 @@ plate.set_region("high_ctrl", "A1:P1")
 plate.set_region("low_ctrl", "A12:P12")
 plate.set_region("full_plate", "A1:P12")
 
-# Retrieve regions for statistics 
-ctrl_window = plate.get_region("high_ctrl") / plate.get_region("low_ctrl")
-
-# Plate Z' Calculation
-high_avg = np.mean(plate.get_region("high_ctrl"))
-low_avg = np.mean(plate.get_region("low_ctrl"))
-high_std = np.mean(plate.get_region("high_ctrl"), ddof=1)
-low_std = np.mean(plate.get_region("low_ctrl"), ddof=1)
-
-z_prime = 1 - (3*high_std + 3*low_std)/abs(high_avg - low_avg)
+# And then retrieve their values
+plate.get_region("full_plate")
 ```
 
 ### Normalization
@@ -133,11 +127,43 @@ plate_normalized = plate.normalize_percent(
 )
 ```
 
+### Plate Calculations
+```sh
+# Calculate some basic plate statistics based on the defined regions
+z_prime = plate.calc_z(region_high='high_ctrl', region_low='low_ctrl', block=1)
+z = plate.calc_z(region_high='high_ctrl', region_low='sample',   block=1)
+window = plate.calc_sw(region_high='high_ctrl', region_low='sample', block=1)
+drift_row, drift_col = plate.calc_drift(region='sample', block=2)
+```
+
+### Cutoffs
+```sh
+# Calculate avg+3sd hit cutoffs, then return a list of hits
+hit_cutoff = plate.calc_cutoff_sd('sample', block=1)
+# calc_cutoff_excluded removes outliers from the hit cutoff calculation
+hit_cutoff_excluded = plate.calc_cutoff_excluded(
+    'sample', block=1, region_high='high_ctrl', region_low='low_ctrl'
+)
+hit_list = plate.get_hits(region="sample", cutoff=hit_cutoff_excluded, block=2)
+
+# Print the hit information
+print(f"Hits: {hit_list}")
+print(f"Raw: {plate.get_region(wells=hit_list, block=1)}")
+print(f"Activity: {plate.get_region(wells=hit_list, block=2).round(2)}")
+```
+
+### Set Metadata
+```sh
+# Add a hit_flag key to the metadata dictionary indicating whether well is a hit
+for well in plate.metadata:
+    plate.metadata[well]['hit_flag'] = well in hit_list 
+```
+
 ### Iterator Support
 ```sh
 # Sequential acess of all wells through an iterator
-for ((row_index, column_index),label), well in plate(block=2):
-    print(f"RowIndex:{row_index} ColumnIndex:{column_index} Label:{label} Data:{well}")
+for (label, row, column, value) in plate(block=2):
+    print(f"Well:{label} Row:{row} Column:{column} Value:{value}")
 ```
 
 ## License
