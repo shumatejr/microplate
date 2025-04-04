@@ -101,6 +101,11 @@ plate.set_region("high_ctrl", "A1:P1")
 plate.set_region("low_ctrl", "A12:P12")
 plate.set_region("full_plate", "A1:P12")
 
+# Regions can be wells, ranges, or lists of any combination of the two
+plate.set_region("corners", ["A1", "A12", "P1", "P12"])
+plate.set_region("edges", ["A1:A12", "P1:P12"])
+plate.set_region("A1+Right", ["A1", "A12:P12"])
+
 # And then retrieve their values
 plate.get_region("full_plate")
 ```
@@ -146,7 +151,8 @@ hit_cutoff_excluded = plate.calc_cutoff_excluded(
 )
 hit_list = plate.get_hits(region="sample", cutoff=hit_cutoff_excluded, block=2)
 
-# Print the hit information
+# Print the hit information.
+# The get_region method can be passed a well list to get the well results for a list of wells.
 print(f"Hits: {hit_list}")
 print(f"Raw: {plate.get_region(wells=hit_list, block=1)}")
 print(f"Activity: {plate.get_region(wells=hit_list, block=2).round(2)}")
