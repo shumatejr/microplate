@@ -90,7 +90,7 @@ plate["A2:A3",2] # Range from data block 2
 plate_ratio['',2] = 1
 plate_ratio['',1] = 2
 
-# Block 3 would store 1/2 in all wells
+# Block 3 would store 2/1 in all wells
 plate_ratio['',3] = plate_ratio['',2] / plate_ratio['',1]
 ```
 

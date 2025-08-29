@@ -57,7 +57,7 @@ class MTP:
         Number of rows to store in the resulting microplate.
     __columns : int
         Number of columns to store in the resulting microplate.
-    __blocks : int, optional
+    blocks : int, optional
         Number of datablocks in the resulting microplate. Defaults to 1.
     __data : 3-dimensional Numpy NDArray
         Internal representation of the microplate data. Stored as a 3D Matrix
@@ -89,13 +89,13 @@ class MTP:
         
         # If no input is specified, create a microplate pre-filled with zeros
         if input_files is None:
-            self.__blocks = blocks
-            self.__data = np.zeros((self.__blocks, self.__rows, self.__cols))
+            self.blocks = blocks
+            self.__data = np.zeros((self.blocks, self.__rows, self.__cols))
         # In this instance, parse files to get contents of blocks
         else:
             # Support for multiple data blocks inside a file
-            self.__blocks = len(input_files)
-            self.__data = np.zeros((self.__blocks, self.__rows, self.__cols))
+            self.blocks = len(input_files)
+            self.__data = np.zeros((self.blocks, self.__rows, self.__cols))
             
             for block_num, data_block in enumerate(input_files):
                 self.__data[block_num] = np.array(self._parse_file(*data_block))
@@ -146,10 +146,13 @@ class MTP:
         # If tuple passed, first part is key and second is block_num
         if type(key) is tuple:
             if (len(key) == 2 and isinstance(key[1], int) 
-                and key[1] > 0 and key[1] <= self.__blocks):
+                and key[1] > 0 and key[1] <= self.blocks):
                 # Well is first element of tuple, block_num second
                 key, block_num = key
                 block_num -= 1
+            elif len(key) == 1:
+                key = key[0]
+                block_num = slice(0,self.blocks)
             else:
                 raise ValueError(f"Invalid Input {key}")
         # Ensure key is a str
@@ -212,7 +215,7 @@ class MTP:
         )
         row_matrix = re.sub('[\[\]]', ' ', row_matrix) # Remove brackets?
         
-        return (f"{self.name}\n#Blocks:{self.__blocks} #Rows:{self.__rows} " 
+        return (f"{self.name}\n#Blocks:{self.blocks} #Rows:{self.__rows} " 
                 f"#Columns:{self.__cols}\n{row_matrix}\n")
     
     # Overloaed operations for iterator support of plate (uses numpy.nditer)
@@ -305,7 +308,7 @@ class MTP:
             If both name and wells are not set.
         """
         # Check if block accessed is within the range
-        if block < 1 or block > self.__blocks:
+        if block < 1 or block > self.blocks:
             raise ValueError("Invalid block number.")
         
         # Retrieve the wells in the region (this will fail for invalid region)
@@ -322,6 +325,32 @@ class MTP:
             value_list.extend(self.__data[block-1,rows,cols].flatten().tolist())
         
         return np.array(value_list)
+    
+    def get_region_labels(self, name: str) -> NDArray:
+        """Retrieve a region as a 1D array.
+        
+        Parameters
+        ----------
+        name : str
+            Specified name of the region which will be used for retrieval.
+        Returns
+        -------
+        NDArray
+            1D Numpy array of well labels.
+        
+        Raises
+        ------
+        ValueError
+            If the region name is not valid.
+        """
+        if not name in self.regions:
+            raise ValueError("Invalid region input")
+        
+        region_wells = self.regions[name]
+        well_list = []
+        for well in region_wells:
+            well_list.extend(self._well_transform_list(well))
+        return well_list
     
     # Given a cutoff and a region, return the wells which are 
     def get_hits(self, region: str, cutoff: float|int, 
@@ -348,10 +377,7 @@ class MTP:
             raise TypeError("Cutoff must be of type int or float")
         
         # Create a list of wells in input region
-        region_wells = self.regions[region]
-        well_list = []
-        for well in region_wells:
-            well_list.extend(self._well_transform_list(well))
+        well_list = self.get_region_labels(region)
         
         # Create a list of hits across entire plate
         if not negative_cutoff:
@@ -380,8 +406,8 @@ class MTP:
         if not type(num_blocks) is int or num_blocks <= 0:
             raise ValueError(f"Improper number of blocks {num_blocks}")
         
-        self.__blocks += num_blocks
-        self.__data.resize(self.__blocks, self.__rows, self.__cols)
+        self.blocks += num_blocks
+        self.__data.resize(self.blocks, self.__rows, self.__cols)
     
     
     # IMPROVEMENT: repeated code in normalizations, create internal method?
@@ -411,14 +437,14 @@ class MTP:
             If region does not exist, or if block is incorrect.
         """
         # Verify user input
-        if not type(block) is int or block > self.__blocks:
+        if not type(block) is int or block > self.blocks:
             raise ValueError("Invalid block number")
         
         norm_plate = copy.deepcopy(self)
         
         # If no block is specified, perform normalization on by-block basis
         if  block <= 0:
-            block_range = range(self.__blocks)
+            block_range = range(self.blocks)
         # Otherwise, only normalize specified block
         else:
             block_range = [block-1]
@@ -477,12 +503,12 @@ class MTP:
             If regions do not exist, method does not exist, or block incorrect.
         """
         # Verify user input
-        if not type(block) is int or block > self.__blocks:
+        if not type(block) is int or block > self.blocks:
             raise ValueError
         
         # If no block is specified, perform normalization on by-block basis
         if  block <= 0:
-            block_range = range(self.__blocks)
+            block_range = range(self.blocks)
         # Otherwise, only normalize specified block
         else:
             block_range = [block-1]

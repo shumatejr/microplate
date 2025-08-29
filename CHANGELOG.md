@@ -27,10 +27,16 @@
     properties user definable properties of each well. 
     For example: volumes, concentrations, ID's, hit_flags
   - Added calculate_cutoff_SD/excluded for cutoff calcs SD and SD w/o outliers.
-  - Added get_hits to return a list of wells above (or below) input cutoff.
+  - Added get_hits to return a list of wells above (or below) input cutoff.+
+
+
+### 1.5
+  - Adjusted blocks to non-private property
+  - Added formal method get_region_labels to return list of wells in region
 
 ### TODO
   - Refactor normalize code
+  - Fix excluded cutoffs to not break when no hits found
 
 
 
