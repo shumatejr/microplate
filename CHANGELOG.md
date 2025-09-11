@@ -29,10 +29,13 @@
   - Added calculate_cutoff_SD/excluded for cutoff calcs SD and SD w/o outliers.
   - Added get_hits to return a list of wells above (or below) input cutoff.+
 
-
 ### 1.5
   - Adjusted blocks to non-private property
   - Added formal method get_region_labels to return list of wells in region
+
+### 1.6
+  - Added iterator functionality to return values from all blocks at once
+
 
 ### TODO
   - Refactor normalize code

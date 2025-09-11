@@ -104,6 +104,7 @@ class MTP:
         self.__index = None
         self.__iter = None
         self.__iterate = True
+        self.__iterblock = 0
     
     # Internal method for parsing data from files during object construction
     def _parse_file(self, file_path: str, delimiter: str, 
@@ -218,9 +219,12 @@ class MTP:
         return (f"{self.name}\n#Blocks:{self.blocks} #Rows:{self.__rows} " 
                 f"#Columns:{self.__cols}\n{row_matrix}\n")
     
-    # Overloaed operations for iterator support of plate (uses numpy.nditer)
-    def __call__(self, block: int = 1):
+    # Overloaded operations for iterator support of plate (uses numpy.nditer)
+    def __call__(self, block: int = 0):
+        if block < 0:
+            ValueError("Invalid Block number")
         self.__iter = np.nditer(self.__data[block-1], flags=["multi_index"])
+        self.__iterblock = block
         return self
     def __iter__(self):
         return self
@@ -230,17 +234,29 @@ class MTP:
             self.__index = None
             self.__iter = None
             self.__iterate = True
+            self.__iterblock = 0
             raise StopIteration
         
-        # iternext() automatically advances iterator, so call it last and store
+        # Pull row and column from the iterator and calculate the label
         self.__index = self.__iter.multi_index # Numpy internal tuple
-        well_value = self.__iter[0].item()
-        self.__iterate = self.__iter.iternext()
-        
-        # Output of the form "A1", 1, 1, Value
         well_row = self.__index[0]+1
         well_col = self.__index[1]+1
         well = f"{self.index_to_row(well_row)}{well_col}"
+        
+        # well_value can be a single element or a list
+        if self.__iterblock != 0:
+            well_value = self.__iter[0].item()
+        else:
+            well_value = []
+            for block_num in range(self.blocks):
+                well_value.append(
+                    float(self.__data[block_num][well_row-1][well_col-1])
+                )
+        
+        # iternext() automatically advances iterator, so call it last and store
+        self.__iterate = self.__iter.iternext()
+        
+        # Output of the form "A1", 1, 1, Value
         return well, well_row, well_col, well_value
     
     def set_region(self, name: str, wells: str|List[str]):

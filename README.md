@@ -168,8 +168,13 @@ for well in plate.metadata:
 ### Iterator Support
 ```sh
 # Sequential acess of all wells through an iterator
+for (label, row, column, value) in plate():
+    print(f"Well:{label} Row:{row} Column:{column} Value:{value}")
+
+# A specific block alone can be accessed if passed
 for (label, row, column, value) in plate(block=2):
     print(f"Well:{label} Row:{row} Column:{column} Value:{value}")
+
 ```
 
 ## License
