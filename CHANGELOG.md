@@ -35,6 +35,9 @@
 
 ### 1.6
   - Added iterator functionality to return values from all blocks at once
+### 1.6.1
+  - Replaced get_region_labels with get_labels that also accepts list of wells
+  - Replaced some self calls for static methods to base class
 
 
 ### TODO

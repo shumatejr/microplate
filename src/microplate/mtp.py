@@ -175,7 +175,7 @@ class MTP:
             row = re.search("[A-Z]+", value)
             col = re.search("[0-9]+", value)
             
-            if row: row_arr[index] = self.row_to_index(row.group())-1 + index
+            if row: row_arr[index] = MTP.row_to_index(row.group())-1 + index
             if col: col_arr[index] = int(col.group())-1 + index
         
         # For single well searches, end of slice needs to be incremented
@@ -241,7 +241,7 @@ class MTP:
         self.__index = self.__iter.multi_index # Numpy internal tuple
         well_row = self.__index[0]+1
         well_col = self.__index[1]+1
-        well = f"{self.index_to_row(well_row)}{well_col}"
+        well = f"{MTP.index_to_row(well_row)}{well_col}"
         
         # well_value can be a single element or a list
         if self.__iterblock != 0:
@@ -342,27 +342,35 @@ class MTP:
         
         return np.array(value_list)
     
-    def get_region_labels(self, name: str) -> NDArray:
+    def get_labels(self, region: str|List[str]) -> List[str]:
         """Retrieve a region as a 1D array.
         
         Parameters
         ----------
-        name : str
-            Specified name of the region which will be used for retrieval.
+        region : str|List[str]
+            Specified region to retrieve the wells from, or a list of wells
+            which could be used to create a region.
+        
         Returns
         -------
-        NDArray
-            1D Numpy array of well labels.
+        List[str]
+            List of individual wells representing the region.
         
         Raises
         ------
         ValueError
             If the region name is not valid.
+        TypeError
+            If the input is not str or List[str].
         """
-        if not name in self.regions:
-            raise ValueError("Invalid region input")
+        if type(region) is str:
+            if not region in self.regions:
+                raise ValueError("Invalid region input")
+            region_wells = self.regions[region]
+        elif type(region) is list and all(type(well) is str for well in region):
+            region_wells = region
+        else: raise ValueError("Wells are not List[str]")
         
-        region_wells = self.regions[name]
         well_list = []
         for well in region_wells:
             well_list.extend(self._well_transform_list(well))
@@ -393,7 +401,7 @@ class MTP:
             raise TypeError("Cutoff must be of type int or float")
         
         # Create a list of wells in input region
-        well_list = self.get_region_labels(region)
+        well_list = self.get_labels(region)
         
         # Create a list of hits across entire plate
         if not negative_cutoff:

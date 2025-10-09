@@ -53,8 +53,8 @@ plate = MTP(
     rows = 16, 
     columns = 24,
     input_files = [ 
-        ('test.txt',',',1,1),  # Comma delimited, Row 1, Column 1
-        ('test.txt','\t',22,2), # Tab delimited, Row 22, Column 2
+        ('test.txt', ',', 1, 1),  # Comma delimited, Row 1, Column 1
+        ('test.txt', '\t', 22, 2), # Tab delimited, Row 22, Column 2
     ]
 )
 
@@ -108,6 +108,9 @@ plate.set_region("A1+Right", ["A1", "A12:P12"])
 
 # And then retrieve their values
 plate.get_region("full_plate")
+
+# Or retrieve their wells labels
+plate.get_labels("high_ctrl")
 ```
 
 ### Normalization
