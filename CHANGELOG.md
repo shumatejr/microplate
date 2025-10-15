@@ -38,7 +38,9 @@
 ### 1.6.1
   - Replaced get_region_labels with get_labels that also accepts list of wells
   - Replaced some self calls for static methods to base class
-
+### 1.6.2
+  - Updated the metadata dict to initialize with default keys as passed in the
+    argument for the MTP class (defaults to empty dict like before)
 
 ### TODO
   - Refactor normalize code

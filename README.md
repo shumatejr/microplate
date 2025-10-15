@@ -166,6 +166,10 @@ print(f"Activity: {plate.get_region(wells=hit_list, block=2).round(2)}")
 # Add a hit_flag key to the metadata dictionary indicating whether well is a hit
 for well in plate.metadata:
     plate.metadata[well]['hit_flag'] = well in hit_list 
+
+# The metadata dictionary can be initialzied with default keys for each well by
+setting the metadata_keys for the class with the key and default value:
+plate_metatest = MTP(rows=2, columns=3, metadata_keys={'concentration': None})
 ```
 
 ### Iterator Support

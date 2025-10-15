@@ -8,7 +8,7 @@ Supports arbitrary densities and stores arbitrary and non-contiguous regions.
 import re
 import sys
 import copy
-from typing import Tuple, List
+from typing import Tuple, List, Dict, Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -33,12 +33,14 @@ class MTP:
         file_path : str
             Path from the working directory of the file the data is located in.
         delimiter : str
-            File delimiter inside the file pointed to by file_path
+            File delimiter inside the file pointed to by file_path.
         file_row : int
             Starting row (counting from 1) where the data block is located.
         file_column : int
             Starting column (counting from 1) where the data block is located.
-
+    metadata_keys : Dict of Str, Any, optional
+            Default keys for each well defined in the metadata dictionary.
+       
     Attributes
     ----------
     name : str
@@ -72,7 +74,8 @@ class MTP:
     
     def __init__(self, rows: int, columns: int, 
                  blocks: int = 1, name: str = "plate", 
-                 input_files: List[Tuple[str, str, int, int]] = None,):
+                 input_files: List[Tuple[str, str, int, int]] = None,
+                 metadata_keys: Dict[str, Any] = {}):
         
         self.__rows = rows
         self.__cols = columns
@@ -81,11 +84,12 @@ class MTP:
         self.name = name
         self.formatter = "{: .2f}".format
         
-        # Initialize metadata dictionary for wells (should this be left empty?)
+        # Initialize metadata dictionary with entry for each well
+        # Class accepts input of default keys for each well
         self.metadata = {}
         for row in range(1, self.__rows+1):
             for col in range(1, self.__cols+1):
-                self.metadata[MTP.index_to_row(row) + str(col)] = {}
+                self.metadata[MTP.index_to_row(row) + str(col)] = metadata_keys
         
         # If no input is specified, create a microplate pre-filled with zeros
         if input_files is None:
