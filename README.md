@@ -168,7 +168,7 @@ for well in plate.metadata:
     plate.metadata[well]['hit_flag'] = well in hit_list 
 
 # The metadata dictionary can be initialzied with default keys for each well by
-setting the metadata_keys for the class with the key and default value:
+# setting the metadata_keys for the class with the key and default value:
 plate_metatest = MTP(rows=2, columns=3, metadata_keys={'concentration': None})
 ```
 

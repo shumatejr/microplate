@@ -1,1 +1,1 @@
-from . mtp import MTP
+from .mtp import MTP

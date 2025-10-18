@@ -41,10 +41,16 @@
 ### 1.6.2
   - Updated the metadata dict to initialize with default keys as passed in the
     argument for the MTP class (defaults to empty dict like before)
+### 1.6.3
+  - Added py.typed file for type checkers.
+  - Added testing for pytest.
+  - Removed sys.exit/print and properly pass import exceptions with message.
+  - Switched open to Path for better platform independence.
 
 ### TODO
   - Refactor normalize code
   - Fix excluded cutoffs to not break when no hits found
+  - Create way to specify metadata locations inside file import
 
 
 
