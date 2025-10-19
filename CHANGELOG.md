@@ -44,7 +44,7 @@
 
 ### 1.7
   - Added py.typed file for type checkers.
-  - Added testing for pytest.
+  - Added initial tests for pytest.
   - Removed sys.exit/print and properly pass import exceptions with message.
   - Switched open to Path for better platform independence.
   - Refactorerd file parsing to use slicing. Downside of entire file being read

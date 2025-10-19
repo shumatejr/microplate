@@ -6,8 +6,8 @@ data array for numeric values, and metadata dictionary for properties per well.
 Supports arbitrary densities and stores arbitrary and non-contiguous regions.
 """
 import re
-import sys
 import copy
+from pathlib import Path
 from typing import Tuple, List, Dict, Any
 
 import numpy as np
@@ -143,13 +143,13 @@ class MTP:
             # Loop instead of list comprehension because it becomes unreadable
             if len(lines) < file_row-1 + num_rows:
                 raise ValueError(f"{parse_type} row is invalid.")
-            lines = lines[file_row-1:file_row-1 + num_rows]
+            lines = lines[file_row-1 : file_row-1 + num_rows]
             
             for idx, line in enumerate(lines):
                 line = line.strip().split(delimiter) # Remove newlines
                 if len(line) < file_column-1 + num_cols:
                     raise ValueError(f"{parse_type} column is invalid.")
-                lines[idx] = line[file_column-1:file_column-1 + num_cols]
+                lines[idx] = line[file_column-1 : file_column-1 + num_cols]
         return lines
     def _parse_data(self, data_tuple):
         return np.array(self._parse_file(*data_tuple))
@@ -170,11 +170,11 @@ class MTP:
                 block_num -= 1
             elif len(key) == 1:
                 key = key[0]
-                block_num = slice(0,self.blocks)
+                block_num = slice(0, self.blocks)
             else:
                 raise ValueError(f"Invalid Input {key}")
         # Ensure key is a str
-        if not type(key) is str:
+        if type(key) is not str:
             raise TypeError(f"{key} must be of type str")
         # Ensure no invalid characters in key
         if re.search("[^A-Z0-9:]", key):
@@ -231,7 +231,7 @@ class MTP:
             max_line_width = np.inf, 
             threshold=np.inf,
         )
-        row_matrix = re.sub('[\[\]]', ' ', row_matrix) # Remove brackets?
+        row_matrix = re.sub(r"\[|\]", " ", row_matrix) # Remove brackets
         
         return (f"{self.name}\n#Blocks:{self.blocks} #Rows:{self.__rows} " 
                 f"#Columns:{self.__cols}\n{row_matrix}\n")
@@ -381,7 +381,7 @@ class MTP:
             If the input is not str or List[str].
         """
         if type(region) is str:
-            if not region in self.regions:
+            if region not in self.regions:
                 raise ValueError("Invalid region input")
             region_wells = self.regions[region]
         elif type(region) is list and all(type(well) is str for well in region):
@@ -414,7 +414,7 @@ class MTP:
         TypeError
             Cutoff provided is not of type float or int.
         """
-        if not type(cutoff) is float and not type(cutoff) is int:
+        if type(cutoff) is not float and type(cutoff) is not int:
             raise TypeError("Cutoff must be of type int or float")
         
         # Create a list of wells in input region
@@ -444,7 +444,7 @@ class MTP:
         ValueError
             Num_blocks is not an int or is <= 0
         """
-        if not type(num_blocks) is int or num_blocks <= 0:
+        if type(num_blocks) is not int or num_blocks <= 0:
             raise ValueError(f"Improper number of blocks {num_blocks}")
         
         self.blocks += num_blocks
@@ -478,7 +478,7 @@ class MTP:
             If region does not exist, or if block is incorrect.
         """
         # Verify user input
-        if not type(block) is int or block > self.blocks:
+        if type(block) is not int or block > self.blocks:
             raise ValueError("Invalid block number")
         
         norm_plate = copy.deepcopy(self)
@@ -492,7 +492,7 @@ class MTP:
         
         for block_num in block_range:
             # Normalize to the entire plate
-            if region_name == None:
+            if region_name is None:
                 norm_plate.__data[block_num] = (
                     (
                         norm_plate.__data[block_num] 
@@ -544,7 +544,7 @@ class MTP:
             If regions do not exist, method does not exist, or block incorrect.
         """
         # Verify user input
-        if not type(block) is int or block > self.blocks:
+        if type(block) is not int or block > self.blocks:
             raise ValueError
         
         # If no block is specified, perform normalization on by-block basis
@@ -837,7 +837,7 @@ class MTP:
         TypeError
             Input is not an integer.
         """
-        if not type(row_index) is int:
+        if type(row_index) is not int:
             raise TypeError(f"{row_index} is not of type int.")
         
         row = ""
