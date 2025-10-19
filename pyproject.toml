@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "microplate"
-version = "1.6.2"
+version = "1.7"
 dependencies = [
 	"numpy",
 ]
@@ -24,3 +24,9 @@ keywords = ["titer", "microtiter", "plate", "assay", "reader", "lab"]
 Homepage = "https://github.com/shumatejr/microplate"
 Changelog = "https://github.com/shumatejr/microplate/blob/main/CHANGELOG.md"
 Issues = "https://github.com/shumatejr/microplate/issues"
+
+[tool.setuptools.package-data]
+"microplate" = ["py.typed"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

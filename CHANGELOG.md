@@ -42,6 +42,15 @@
   - Updated the metadata dict to initialize with default keys as passed in the
     argument for the MTP class (defaults to empty dict like before)
 
+### 1.7
+  - Added py.typed file for type checkers.
+  - Added testing for pytest.
+  - Removed sys.exit/print and properly pass import exceptions with message.
+  - Switched open to Path for better platform independence.
+  - Refactorerd file parsing to use slicing. Downside of entire file being read
+    into memory offset by the fact that input files are generally small.
+  - Added option to parse files for plate-level metadata keys.
+
 ### TODO
   - Refactor normalize code
   - Fix excluded cutoffs to not break when no hits found

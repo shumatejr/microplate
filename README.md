@@ -163,6 +163,9 @@ print(f"Activity: {plate.get_region(wells=hit_list, block=2).round(2)}")
 
 ### Set Metadata
 ```sh
+# Plate can store both plate-level and well-level metadata. The MTP.metadata
+# dictionary is initialized with keys for each well by default.
+
 # Add a hit_flag key to the metadata dictionary indicating whether well is a hit
 for well in plate.metadata:
     plate.metadata[well]['hit_flag'] = well in hit_list 
@@ -170,6 +173,23 @@ for well in plate.metadata:
 # The metadata dictionary can be initialzied with default keys for each well by
 # setting the metadata_keys for the class with the key and default value:
 plate_metatest = MTP(rows=2, columns=3, metadata_keys={'concentration': None})
+
+# Files can also be parsed for well-level metadata. This metadata can even come
+# from an entirely different file than used for defining the well data.
+plate_with_metadata = MTP(
+    name = "384-Well Test Plate", 
+    rows = 16, 
+    columns = 24,
+    input_files = [ 
+        ('test.txt', ',', 1, 1),  # Comma delimited, Row 1, Column 1
+        ('test.txt', '\t', 22, 2), # Tab delimited, Row 22, Column 2
+    ],
+        plate_metadata = [ 
+        (metadata_file, ' ', 3, 2, "barcode"), # Space delimited, Row 3, Column 2 is the barcode
+        (metadata_file, ' ', 2, 2, "date"),
+        (metadata_file, ' ', 2, 5, "time"),
+    ]
+)
 ```
 
 ### Iterator Support

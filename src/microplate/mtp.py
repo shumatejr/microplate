@@ -38,8 +38,16 @@ class MTP:
             Starting row (counting from 1) where the data block is located.
         file_column : int
             Starting column (counting from 1) where the data block is located.
+    plate_metadata : List of Tuple, optional
+        Similar to the input_files argument, except this scans for individual
+        pieces of data in a file to store in the metadata dictionary.
+        
+        Tuple is of the form (file_path, delimiter, file_row, file_column, key)
+        key : str
+            This is the top-level key that will be created in the metadata dict.
+        Remaining elements of tuple are the same as in the input_files tuple.
     metadata_keys : Dict of Str, Any, optional
-            Default keys for each well defined in the metadata dictionary.
+            Default keys for well-level data defined in the metadata dictionary.
        
     Attributes
     ----------
@@ -54,7 +62,7 @@ class MTP:
         example, set equal to "{: .2f}".format to print as floats with 2 dec.
     metadata : Dict
         Dictionary initialized with a key for each well. Used for storing any
-        relevant metadata for each well.
+        relevant metadata for the plate, well-level or plate-level.
     __rows : int
         Number of rows to store in the resulting microplate.
     __columns : int
@@ -75,7 +83,11 @@ class MTP:
     def __init__(self, rows: int, columns: int, 
                  blocks: int = 1, name: str = "plate", 
                  input_files: List[Tuple[str, str, int, int]] = None,
+                 plate_metadata: List[Tuple[str, str, int, int, str]] = None,
                  metadata_keys: Dict[str, Any] = {}):
+        
+        if rows <= 0 or columns <= 0:
+            raise ValueError("Plate dimensions must be greater than zero.")
         
         self.__rows = rows
         self.__cols = columns
@@ -84,9 +96,13 @@ class MTP:
         self.name = name
         self.formatter = "{: .2f}".format
         
-        # Initialize metadata dictionary with entry for each well
-        # Class accepts input of default keys for each well
+        # Initialize metadata dictionary and parse plate-level metadata
         self.metadata = {}
+        if plate_metadata is not None:
+            for meta_tuple in plate_metadata:
+                self.metadata[meta_tuple[-1]] = self._parse_metadata(meta_tuple)
+        # Initialize key for each well for well-level metadata
+        # Class accepts input of default keys for each well
         for row in range(1, self.__rows+1):
             for col in range(1, self.__cols+1):
                 self.metadata[MTP.index_to_row(row) + str(col)] = metadata_keys
@@ -101,8 +117,8 @@ class MTP:
             self.blocks = len(input_files)
             self.__data = np.zeros((self.blocks, self.__rows, self.__cols))
             
-            for block_num, data_block in enumerate(input_files):
-                self.__data[block_num] = np.array(self._parse_file(*data_block))
+            for block_num, data_tuple in enumerate(input_files):
+                self.__data[block_num] = self._parse_data(data_tuple)
         
         # Iterator defaults to none because it breaks deepcopy otherwise
         self.__index = None
@@ -111,37 +127,34 @@ class MTP:
         self.__iterblock = 0
     
     # Internal method for parsing data from files during object construction
-    def _parse_file(self, file_path: str, delimiter: str, 
-                     file_row: int, file_column: int) -> NDArray:
+    def _parse_file(self, file_path: str, delimiter: str, file_row: int, 
+                    file_column: int, parse_type: str = None) -> NDArray:
         
-        # Initialize np matrix of appropriate size to store our data
-        data = np.zeros((self.__rows,self.__cols))
+        # Differentiate between parsing data or metadata, with readable errors
+        if parse_type is None:
+            num_rows = self.__rows
+            num_cols = self.__cols
+            parse_type = "Input Data"
+        else: num_rows = num_cols = 1
         
-        # Open the file at the file path
-        with open(file_path, 'r') as file:
-            # Iterate through the files rows to the desired line number
-            for line_number, line in enumerate(file, start=1):
-                # Only consider rows within range of file_row to size of data
-                if (line_number >= file_row and 
-                    line_number <  file_row + self.__rows):
-                    
-                    # Break up the line by the specified delimiter
-                    split_line = line.split(delimiter)
-                    
-                    # Iterate through columns to the desired column number
-                    for column_number, value in enumerate(split_line, start=1):
-                        if (column_number >= file_column and 
-                            column_number <  file_column + self.__cols):
-                            
-                            # Fail if non-numeric input is found in file
-                            try:
-                                data[line_number-file_row, 
-                                     column_number-file_column] = value
-                            except ValueError:
-                                print(f"Invalid input in file {file_path}." 
-                                      f"Check delimiter/block location.")
-                                sys.exit(1)
-        return data
+        with Path(file_path).open("r") as file:
+            lines = file.readlines() # Not great for very large files
+            
+            # Loop instead of list comprehension because it becomes unreadable
+            if len(lines) < file_row-1 + num_rows:
+                raise ValueError(f"{parse_type} row is invalid.")
+            lines = lines[file_row-1:file_row-1 + num_rows]
+            
+            for idx, line in enumerate(lines):
+                line = line.strip().split(delimiter) # Remove newlines
+                if len(line) < file_column-1 + num_cols:
+                    raise ValueError(f"{parse_type} column is invalid.")
+                lines[idx] = line[file_column-1:file_column-1 + num_cols]
+        return lines
+    def _parse_data(self, data_tuple):
+        return np.array(self._parse_file(*data_tuple))
+    def _parse_metadata(self, metadata_tuple):
+        return self._parse_file(*metadata_tuple)[0][0] # No list
     
     # Internal checks for get/set
     def _key_check(self, key) -> Tuple[str, int]:
