@@ -484,7 +484,7 @@ class MTP:
         norm_plate = copy.deepcopy(self)
         
         # If no block is specified, perform normalization on by-block basis
-        if  block <= 0:
+        if block <= 0:
             block_range = range(self.blocks)
         # Otherwise, only normalize specified block
         else:
