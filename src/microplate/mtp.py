@@ -450,6 +450,108 @@ class MTP:
         self.blocks += num_blocks
         self.__data.resize(self.blocks, self.__rows, self.__cols)
     
+    def normalize(self, method: str, block: int = 0, **kwargs):
+        """Normalize the current MTP through various means.
+        
+        Parameters
+        ----------
+        method : str
+            Strategy for normalization. Currently supports zscore, minmax, 
+            median, and mean. 
+        block : int, optional
+            Data block number to use when retrieving wells. If none specified,
+            then all blocks of the MTP are normalized on a bock-by-block basis.
+        **kwargs : dict
+            Additional parameters used depending on chosen normalize method.
+            zscore:
+                region : str, optional
+                    Region used to calculate mean and stdev (defaults to all)
+                df : int, optional
+                    Numpy degrees of freedom for standard deviation calculation.
+            minmax | percent_median | percent_mean:
+                multiplier : int|float, optional
+                    Multiply the final normalized resuly by some coonstant. 
+                    (the default is 1 for minmax and 100 for percent methods)
+            percent_median | percent_mean: 
+                region_high : str
+                    Name of high control region for normalization (100%)
+                region_low : str
+                    Name of low control region for normalization (0%)
+        
+        Raises
+        ------
+        TypeError
+            If method is not a str or block is not an int.
+        ValueError
+            If the block value is invalid.
+        KeyError
+            If method is invalid, or if region_high or region_low missing for 
+            percent methods.
+        """
+        # Verify user input
+        if type(method) is not str or type(block) is not int:
+            raise TypeError("Invalid input")
+        if block > self.blocks or block < 0:
+            raise ValueError("Invalid block number")
+        
+        # If no block is specified, perform normalization on by-block basis
+        if block <= 0:
+            block_range = range(self.blocks)
+        else:
+            block_range = [block-1]
+        
+        for block_num in block_range:
+            match method.lower():
+                case "zscore" | "z-score" | "z_score":
+                    df = kwargs.get("df", 1)
+                    scale = 1
+                    if "region" in kwargs:
+                        region = kwargs.get("region")
+                        
+                        shift = np.mean(self.get_region(region, block_num+1))
+                        norm = np.std(
+                            self.get_region(region, block_num+1), 
+                            ddof=df
+                        )
+                    else:
+                        shift = np.mean(self.__data[block_num])
+                        norm = np.std(self.__data[block_num], ddof=df)
+                case "minmax" | "min-max" | "min_max":
+                    scale = kwargs.get("multiplier", 1)
+                    
+                    high = np.max(self.__data[block_num])
+                    low = np.min(self.__data[block_num])
+                    if kwargs.get("invert"): low, high = high, low
+                    
+                    shift = low
+                    norm = high - low
+                case "median" | "percent_median":
+                    scale = kwargs.get("multiplier", 100)
+                    if "region_high" in kwargs and "region_low" in kwargs:
+                        high = kwargs.get("region_high")
+                        low = kwargs.get("region_low")
+                        
+                        shift = np.median(self.get_region(low, block_num+1))
+                        norm = np.median(self.get_region(high, block_num+1)) - 
+                               np.median(self.get_region(low, block_num+1))
+                    else:
+                        raise KeyError(f"{method} requires region_high/low key")
+                case "mean" | "percent_mean":
+                    scale = kwargs.get("multiplier", 100)
+                    if "region_high" in kwargs and "region_low" in kwargs:
+                        high = kwargs.get("region_high")
+                        low = kwargs.get("region_low")
+                        
+                        shift = np.mean(self.get_region(low, block_num+1))
+                        norm = np.mean(self.get_region(high, block_num+1)) - 
+                               np.mean(self.get_region(low, block_num+1))
+                    else:
+                        raise KeyError(f"{method} requires region_high/low key")
+                case _:
+                    raise ValueError(f"Invalid normalization method {method}.")
+            self.__data[block_num] = scale * (
+                (self.__data[block_num] - shift) / norm
+            )
     
     # IMPROVEMENT: repeated code in normalizations, create internal method?
     def normalize_zscore(self, region_name: str = None, 
@@ -545,7 +647,7 @@ class MTP:
         """
         # Verify user input
         if type(block) is not int or block > self.blocks:
-            raise ValueError
+            raise ValueError("Invalid block number")
         
         # If no block is specified, perform normalization on by-block basis
         if  block <= 0:
