@@ -1,6 +1,5 @@
 import copy
 import pytest
-import numpy as np
 from microplate import MTP
 
 @pytest.fixture
@@ -50,6 +49,7 @@ def test_import():
             columns = 12,
             input_files = [("sample_data.txt", ",", 23, 2)]
         )
+    assert plate_failure is None
 
 
 def test_read(plate_96):

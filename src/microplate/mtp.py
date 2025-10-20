@@ -6,7 +6,6 @@ data array for numeric values, and metadata dictionary for properties per well.
 Supports arbitrary densities and stores arbitrary and non-contiguous regions.
 """
 import re
-import copy
 from pathlib import Path
 from typing import Tuple, List, Dict, Any
 
