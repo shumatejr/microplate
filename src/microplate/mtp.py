@@ -493,6 +493,12 @@ class MTP:
             raise TypeError("Invalid input")
         if block > self.blocks or block < 0:
             raise ValueError("Invalid block number")
+        # Protect against unintended key errors
+        whitelist = ["region", "region_high", "region_low", "multiplier", 
+                    "df", "invert"]
+        key_check = set(kwargs.keys()) - set(whitelist)
+        if key_check:
+            raise ValueError(f"Invalid argument input(s): {key_check}")
         
         # If no block is specified, perform normalization on by-block basis
         if block <= 0:
@@ -532,8 +538,8 @@ class MTP:
                         low = kwargs.get("region_low")
                         
                         shift = np.median(self.get_region(low, block_num+1))
-                        norm = np.median(self.get_region(high, block_num+1)) - 
-                               np.median(self.get_region(low, block_num+1))
+                        norm = (np.median(self.get_region(high, block_num+1)) - 
+                               np.median(self.get_region(low, block_num+1)))
                     else:
                         raise KeyError(f"{method} requires region_high/low key")
                 case "mean" | "percent_mean":
@@ -543,8 +549,8 @@ class MTP:
                         low = kwargs.get("region_low")
                         
                         shift = np.mean(self.get_region(low, block_num+1))
-                        norm = np.mean(self.get_region(high, block_num+1)) - 
-                               np.mean(self.get_region(low, block_num+1))
+                        norm = (np.mean(self.get_region(high, block_num+1)) - 
+                               np.mean(self.get_region(low, block_num+1)))
                     else:
                         raise KeyError(f"{method} requires region_high/low key")
                 case _:
@@ -552,154 +558,6 @@ class MTP:
             self.__data[block_num] = scale * (
                 (self.__data[block_num] - shift) / norm
             )
-    
-    # IMPROVEMENT: repeated code in normalizations, create internal method?
-    def normalize_zscore(self, region_name: str = None, 
-                         block: int = 0, df: int = 1):
-        """Create a new MTP that is normalized by z-score
-        
-        Parameters
-        ----------
-        region_name : str, optional
-            Name of region used for normalization. If none specified, this will
-            use the entire plate as the region to normalize to.
-        block : int, optional
-            Data block number to use when retrieving wells. If none specified,
-            then all blocks of the MTP are normalized on a bock-by-block basis.
-        df : int, optional
-            Numpy degrees of freedom for standard deviation calculation.
-        
-        Returns
-        ------
-        MTP
-            A copy of the MTP with the normalization applied.
-        
-        Raises
-        ------
-        ValueError
-            If region does not exist, or if block is incorrect.
-        """
-        # Verify user input
-        if type(block) is not int or block > self.blocks:
-            raise ValueError("Invalid block number")
-        
-        norm_plate = copy.deepcopy(self)
-        
-        # If no block is specified, perform normalization on by-block basis
-        if block <= 0:
-            block_range = range(self.blocks)
-        # Otherwise, only normalize specified block
-        else:
-            block_range = [block-1]
-        
-        for block_num in block_range:
-            # Normalize to the entire plate
-            if region_name is None:
-                norm_plate.__data[block_num] = (
-                    (
-                        norm_plate.__data[block_num] 
-                        - np.mean(norm_plate.__data[block_num])
-                    )
-                    / np.std(norm_plate.__data[block_num], ddof=1)
-                )
-            else:
-                norm_plate.__data[block_num] = (
-                    (
-                        norm_plate.__data[block_num] 
-                        - np.mean(self.get_region(region_name, block_num+1))
-                    )
-                    / np.std(self.get_region(region_name, block_num+1), ddof=df)
-                )
-        return norm_plate
-    
-    def normalize_percent(self, region_high: str, region_low: str, 
-                          block: int = 0, method: str = "median", 
-                          multiplier: int = 100, invert: bool = False):
-        """Create a new MTP that is normalized on a percentage scale
-        
-        Parameters
-        ----------
-        region_high : str
-            Name of region used for 100% in normalization.
-        region_low : str
-            Name of region used for 0% in normalization.
-        block : int, optional
-            Data block number to use when retrieving wells. If none specified,
-            then all blocks of the MTP are normalized on a bock-by-block basis
-        method : str, optional
-            Statistic used for normalization. Options include: mean, median, and
-            minmax.
-        multiplier : int, optional
-            Scaling factor used after normalization. Defaults to 100 for percent
-            normalization, but can be changed to 1 for 0->1 normalization.
-        invert : bool, optional
-            Subtract arr val from multiplier. Only usable in minmax method.
-        
-        Returns
-        ------
-        MTP
-            A copy of the MTP with the normalization applied.
-        
-        Raises
-        ------
-        ValueError
-            If regions do not exist, method does not exist, or block incorrect.
-        """
-        # Verify user input
-        if type(block) is not int or block > self.blocks:
-            raise ValueError("Invalid block number")
-        
-        # If no block is specified, perform normalization on by-block basis
-        if  block <= 0:
-            block_range = range(self.blocks)
-        # Otherwise, only normalize specified block
-        else:
-            block_range = [block-1]
-        
-        norm_plate = copy.deepcopy(self)
-        
-        for block_num in block_range:
-            if method == "median":
-                norm_plate.__data[block_num] = multiplier * (
-                    (
-                        norm_plate.__data[block_num] 
-                        - np.median(self.get_region(region_low, block_num+1))
-                    )
-                    /(
-                        np.median(self.get_region(region_high, block_num+1)) 
-                        - np.median(self.get_region(region_low, block_num+1))
-                    )
-                )
-            elif method == "mean":
-                norm_plate.__data[block_num] = multiplier * (
-                    (
-                        norm_plate.__data[block_num] 
-                        - np.mean(self.get_region(region_low, block_num+1))
-                    )
-                    /(
-                        np.mean(self.get_region(region_high, block_num+1)) 
-                        - np.mean(self.get_region(region_low, block_num+1))
-                    )
-                )
-            elif method == "minmax":
-                norm_plate.__data[block_num] = multiplier * (
-                    (
-                        norm_plate.__data[block_num] 
-                        - np.min(self.get_region(region_low, block_num+1))
-                    )
-                    /(
-                        np.max(self.get_region(region_high, block_num+1)) 
-                        - np.min(self.get_region(region_low, block_num+1))
-                    )
-                )
-                if invert:
-                    norm_plate.__data[block_num] = (
-                        multiplier - norm_plate.__data[block_num]
-                    )
-            else:
-                raise ValueError("Invalid Method")
-        
-        return norm_plate
     
     # Routine plate statistic calculations
     def calc_z(self, region_high: str, region_low: str, 

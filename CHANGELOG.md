@@ -51,6 +51,10 @@
     into memory offset by the fact that input files are generally small.
   - Added option to parse files for plate-level metadata keys.
 
+### 1.8
+  - Refactored normalize code to simplify and replaced with single normalize
+    method that alters the MTP in-place isntead of genereating a new one.
+
 ### TODO
   - Refactor normalize code
   - Fix excluded cutoffs to not break when no hits found

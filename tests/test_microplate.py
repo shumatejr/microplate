@@ -1,3 +1,4 @@
+import copy
 import pytest
 import numpy as np
 from microplate import MTP
@@ -16,6 +17,16 @@ def plate_96():
             ("sample_data.txt", " ", 42, 1, "Date"),
         ],
         metadata_keys = {"Concentration": None, "Volume": 0.0}
+    )
+
+@pytest.fixture
+def plate_384():
+    return MTP(
+        rows = 16,
+        columns = 24,
+        input_files = [
+            ("sample_data.txt", ",", 4, 1),
+        ]
     )
 
 
@@ -147,11 +158,44 @@ def test_regions(plate_96):
     assert plate_96.get_labels("low_ctrl") == ["A2", "B2", "C2"]
     assert plate_96.get_labels("corners") == ["A1", "A12", "H1", "H12"]
     assert plate_96.get_labels("mixed") == ["A1", "H1", "H2"]
-    
-    
 
-# def test_normalization():
-    # return True
+
+def test_normalization(plate_96, plate_384):
+    plate_96.set_region("sample", "E1:H12")
+    plate_96.set_region("hi", "A1:D1")
+    plate_96.set_region("lo", "E1:H1")
+    
+    plate_96_b1 = copy.deepcopy(plate_96)
+    plate_96_b2 = copy.deepcopy(plate_96)
+    
+    plate_96.normalize("zscore")
+    plate_96_b1.normalize("zscore", 1)
+    plate_96_b2.normalize("zscore", 2)
+    
+    assert float(plate_96["H12"][0][0]) == -0.7299763494704298
+    assert (plate_96["",1] == plate_96_b1["",1]).all()
+    assert (plate_96["",2] != plate_96_b1["",2]).any()
+    assert (plate_96["",2] == plate_96_b2["",2]).all()
+    
+    plate_384.set_region("lo", "A2:P2")
+    plate_384.set_region("hi", "A1:P1")
+    
+    plate_384_minmax = copy.deepcopy(plate_384)
+    plate_384_minmax100 = copy.deepcopy(plate_384)
+    plate_384_median = copy.deepcopy(plate_384)
+    plate_384_mean = copy.deepcopy(plate_384)
+    
+    plate_384_minmax.normalize("minmax")
+    plate_384_minmax100.normalize("minmax", multiplier=100)
+    plate_384_median.normalize("median", region_high="hi", region_low="lo")
+    plate_384_mean.normalize("mean", region_high="hi", region_low="lo")
+    
+    assert float(plate_384_minmax["P24"][0][0]) == 0.10470701248799233
+    assert float(plate_384_median["P24"][0][0]) == 8.867735470941886
+    assert float(plate_384_mean["P24"][0][0]) == 8.855210420841683
+    
+    assert (plate_384_minmax100[''] == 100 * plate_384_minmax['']).all()
+
 
 # def test_stats():
     # return True
@@ -160,8 +204,12 @@ def test_regions(plate_96):
 # def test_print(capfd):
     # return True
 
+
 # def test_iterator():
     # return True
 
+
 # def test_static():
     # return True
+
+
