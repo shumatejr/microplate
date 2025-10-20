@@ -56,7 +56,6 @@
     method that alters the MTP in-place isntead of genereating a new one.
 
 ### TODO
-  - Refactor normalize code
   - Fix excluded cutoffs to not break when no hits found
 
 

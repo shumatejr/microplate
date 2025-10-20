@@ -115,24 +115,21 @@ plate.get_labels("high_ctrl")
 
 ### Normalization
 ```sh
-# Normalize entire plate by zscore (returns a copy)
-plate = plate.normalize_zscore()
+# Supports normalization of the data by zscore, minmax (0 to 1), percent_median,
+# and percent_mean. Additional keyword arguments are available depending on the 
+# normalization method. 
+
+# Normalize entire plate by zscore
+plate.normalize("zscore")
+
+# Normalize entire plate with lowest value being 1 and highest being 0
+plate.normalize("minmax", invert=True)
 
 # Normalize to a percent basis based on high/low control
-plate_normalized = plate.normalize_percent(
-    region_high = 'high_ctrl', 
-    region_low = 'low_ctrl',
-    method = 'median'
-)
+plate.normalize("percent_median", region_high = 'high_ctrl', region_low = 'low_ctrl')
 
-# All data blocks are normalized unless specified
-# Scales data block 2 from 0-100%
-plate_normalized = plate.normalize_percent(
-    region_high = 'full_plate', 
-    region_low = 'full_plate',
-    block = 2,
-    method = 'minmax'
-)
+# Normalize only block 2 to percent based on the mean of the controls
+plate.normalize("percent_mean", 2, region_high = 'high_ctrl', region_low = 'low_ctrl')
 ```
 
 ### Plate Calculations
