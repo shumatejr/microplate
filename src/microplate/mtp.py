@@ -128,7 +128,7 @@ class MTP:
     
     # Internal method for parsing data from files during object construction
     def _parse_file(self, file_path: str, delimiter: str, file_row: int, 
-                    file_column: int, parse_type: str | None = None) -> List[List[str]]:
+                    file_column: int, parse_type: str|None = None) -> List[List[str]]:
         
         # Differentiate between parsing data or metadata, with readable errors
         if parse_type is None:
@@ -150,7 +150,7 @@ class MTP:
                 line_split = line.strip().split(delimiter) # Remove newlines
                 if len(line_split) < file_column-1 + num_cols:
                     raise ValueError(f"{parse_type} column is invalid.")
-                parsed_data.append(line_split[file_column-1 : file_column-1 + num_cols])
+                parsed_data.append(line_split[file_column-1:file_column-1 + num_cols])
         return parsed_data
     def _parse_data(self, data_tuple: Tuple[str, str, int, int]):
         return np.array(self._parse_file(*data_tuple))
@@ -167,7 +167,7 @@ class MTP:
             if (len(key) == 2 and isinstance(key[1], int) 
                 and key[1] > 0 and key[1] <= self.blocks):
                 # Well is first element of tuple, block_num second
-                key, block_num = key
+                key, block_num = key # Unpack key tuple
                 block_num -= 1
             elif len(key) == 1:
                 key = key[0]
@@ -270,7 +270,9 @@ class MTP:
         else:
             well_value = []
             for block_num in range(self.blocks):
-                well_value.append(float(self.__data[block_num][well_row-1][well_col-1]))
+                well_value.append(
+                    float(self.__data[block_num][well_row-1][well_col-1])
+                )
         
         # iternext() automatically advances iterator, so call it last and store
         self.__iterate = self.__iter.iternext()
@@ -686,7 +688,8 @@ class MTP:
         return float(data_avg + num_deviations*data_sd)
     
     def calc_cutoff_sd(self, region: str, block: int = 1, df: int = 1, 
-                       num_deviations: int = 3, negative_cutoff: bool = False) -> float:
+                       num_deviations: int = 3, 
+                       negative_cutoff: bool = False) -> float:
         """Calculate cutoff using a regions average and stdev.
         
         Parameters
