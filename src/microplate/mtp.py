@@ -6,7 +6,6 @@ data array for numeric values, and metadata dictionary for properties per well.
 Supports arbitrary densities and stores arbitrary and non-contiguous regions.
 """
 import re
-import copy
 from pathlib import Path
 from typing import Tuple, List, Dict, Any
 
@@ -82,9 +81,9 @@ class MTP:
     
     def __init__(self, rows: int, columns: int, 
                  blocks: int = 1, name: str = "plate", 
-                 input_files: List[Tuple[str, str, int, int]] = None,
-                 plate_metadata: List[Tuple[str, str, int, int, str]] = None,
-                 metadata_keys: Dict[str, Any] = {}):
+                 input_files: List[Tuple[str, str, int, int]] | None = None,
+                 plate_metadata: List[Tuple[str, str, int, int, str]] | None = None,
+                 metadata_keys: Dict[str, Any] | None = None):
         
         if rows <= 0 or columns <= 0:
             raise ValueError("Plate dimensions must be greater than zero.")
@@ -98,6 +97,7 @@ class MTP:
         
         # Initialize metadata dictionary and parse plate-level metadata
         self.metadata = {}
+        if metadata_keys is None: metadata_keys = {}
         if plate_metadata is not None:
             for meta_tuple in plate_metadata:
                 self.metadata[meta_tuple[-1]] = self._parse_metadata(meta_tuple)
@@ -128,7 +128,7 @@ class MTP:
     
     # Internal method for parsing data from files during object construction
     def _parse_file(self, file_path: str, delimiter: str, file_row: int, 
-                    file_column: int, parse_type: str = None) -> NDArray:
+                    file_column: int, parse_type: str|None = None) -> List[List[str]]:
         
         # Differentiate between parsing data or metadata, with readable errors
         if parse_type is None:
@@ -145,19 +145,20 @@ class MTP:
                 raise ValueError(f"{parse_type} row is invalid.")
             lines = lines[file_row-1 : file_row-1 + num_rows]
             
-            for idx, line in enumerate(lines):
-                line = line.strip().split(delimiter) # Remove newlines
-                if len(line) < file_column-1 + num_cols:
+            parsed_data = []
+            for line in lines:
+                line_split = line.strip().split(delimiter) # Remove newlines
+                if len(line_split) < file_column-1 + num_cols:
                     raise ValueError(f"{parse_type} column is invalid.")
-                lines[idx] = line[file_column-1 : file_column-1 + num_cols]
-        return lines
-    def _parse_data(self, data_tuple):
+                parsed_data.append(line_split[file_column-1:file_column-1 + num_cols])
+        return parsed_data
+    def _parse_data(self, data_tuple: Tuple[str, str, int, int]):
         return np.array(self._parse_file(*data_tuple))
-    def _parse_metadata(self, metadata_tuple):
+    def _parse_metadata(self, metadata_tuple: Tuple[str, str, int, int, str]):
         return self._parse_file(*metadata_tuple)[0][0] # No list
     
     # Internal checks for get/set
-    def _key_check(self, key) -> Tuple[str, int]:
+    def _key_check(self, key: str|Tuple[str, int]) -> Tuple[str, int|slice]:
         # By default operate on the first block
         block_num = 0
         
@@ -166,7 +167,7 @@ class MTP:
             if (len(key) == 2 and isinstance(key[1], int) 
                 and key[1] > 0 and key[1] <= self.blocks):
                 # Well is first element of tuple, block_num second
-                key, block_num = key
+                key, block_num = key # Unpack key tuple
                 block_num -= 1
             elif len(key) == 1:
                 key = key[0]
@@ -185,6 +186,9 @@ class MTP:
     # Convert an input well representation into indices
     def _well_transform(self, key: str) -> Tuple[int, int, int, int]:
         
+        index = 0
+        row = col = None
+        
         row_arr = [0, self.__rows, None]
         col_arr = [0, self.__cols, None]
         
@@ -201,7 +205,7 @@ class MTP:
         
         return row_arr[0], row_arr[1], col_arr[0], col_arr[1]
     # Convert indices to slices
-    def _well_transform_slice(self, key: str) -> Tuple[object, object]:
+    def _well_transform_slice(self, key: str) -> Tuple[slice, slice]:
         row1, row2, col1, col2 = self._well_transform(key)
         return slice(row1, row2), slice(col1, col2)
     # Convert indices to list of wells
@@ -212,15 +216,15 @@ class MTP:
                 for col in range(col1+1, col2+1)]
     
     # Overloaded list operations for retrieving/setting microplate data
-    def __getitem__(self, key) -> NDArray:
+    def __getitem__(self, key: str | Tuple[str, int]) -> NDArray:
         wells, block_num = self._key_check(key)
         rows, cols = self._well_transform_slice(wells)
         return self.__data[block_num, rows, cols]
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: str | Tuple[str, int], value: int | float | NDArray):
         wells, block_num = self._key_check(key)
         rows, cols = self._well_transform_slice(wells)
         self.__data[block_num, rows, cols] = value
-    def __delitem__(self, key):
+    def __delitem__(self, key: str | Tuple[str, int]):
         self.__setitem__(key, 0)
     
     # Custom string representation of a MTP for printing
@@ -228,8 +232,8 @@ class MTP:
         row_matrix = np.array2string(
             self.__data + 0.0, # 0.0 is added to eliminate -0.0 from display
             formatter={"float_kind": self.formatter}, 
-            max_line_width = np.inf, 
-            threshold=np.inf,
+            max_line_width = None, 
+            threshold=None,
         )
         row_matrix = re.sub(r"\[|\]", " ", row_matrix) # Remove brackets
         
@@ -246,7 +250,7 @@ class MTP:
     def __iter__(self):
         return self
     def __next__(self):
-        if not self.__iterate:
+        if not self.__iterate or self.__iter is None:
             # Reset iterator to default values to enable deepcopy afterwards
             self.__index = None
             self.__iter = None
@@ -315,8 +319,8 @@ class MTP:
         else:
             raise TypeError(f"{wells} must be of type str or list[str].")
     
-    def get_region(self, name: str = None, block: int = 1,
-                   wells: str|list[str] = None) -> NDArray:
+    def get_region(self, name: str|None = None, block: int = 1,
+                   wells: str|list[str]|None = None) -> NDArray:
         """Retrieve a region as a 1D array.
         
         Parameters
@@ -359,7 +363,7 @@ class MTP:
         
         return np.array(value_list)
     
-    def get_labels(self, region: str|List[str]) -> List[str]:
+    def get_labels(self, region: str | List[str]) -> List[str]:
         """Retrieve a region as a 1D array.
         
         Parameters
@@ -394,8 +398,8 @@ class MTP:
         return well_list
     
     # Given a cutoff and a region, return the wells which are 
-    def get_hits(self, region: str, cutoff: float|int, 
-                 block: int = 1, negative_cutoff: bool = False) -> List[str]:
+    def get_hits(self, region: str, cutoff: float|int, block: int = 1, 
+                 negative_cutoff: bool = False) -> List[str]:
         """Return a list of wells that meet the input cutoff criteria
         
         Parameters
@@ -431,24 +435,33 @@ class MTP:
         # Return intersection of list of hits and list of wells in region
         return list(set(well_list) & set(hit_list))
     
-    def add_block(self, num_blocks: int = 1):
+    def add_block(self, num_blocks: int = 1, copy_block: int = 0):
         """Add a new empty block to the microplate.
         
         Parameters
         ----------
         num_blocks : int, optional
             Add num_blocks data blocks to the plate.
+        copy_block : int, optional
+            Block number to copy data from when creating new blocks.
             
         Raises
         ------
         ValueError
             Num_blocks is not an int or is <= 0
+            Copy_block is not a valid block num.
         """
         if type(num_blocks) is not int or num_blocks <= 0:
             raise ValueError(f"Improper number of blocks {num_blocks}")
+        if type(copy_block) is not int or copy_block < 0 or copy_block > self.blocks:
+            raise ValueError(f"Improper blocks number {copy_block}")
         
         self.blocks += num_blocks
         self.__data.resize(self.blocks, self.__rows, self.__cols)
+
+        if copy_block > 0:
+            for block_num in range(self.blocks, self.blocks - num_blocks, -1):
+                self.__data[block_num-1] = self.__data[copy_block-1]
     
     def normalize(self, method: str, block: int = 0, **kwargs):
         """Normalize the current MTP through various means.
@@ -470,7 +483,7 @@ class MTP:
                     Numpy degrees of freedom for standard deviation calculation.
             minmax | percent_median | percent_mean:
                 multiplier : int|float, optional
-                    Multiply the final normalized resuly by some coonstant. 
+                    Multiply the final normalized resuly by some constant. 
                     (the default is 1 for minmax and 100 for percent methods)
             percent_median | percent_mean: 
                 region_high : str
@@ -512,7 +525,7 @@ class MTP:
                     df = kwargs.get("df", 1)
                     scale = 1
                     if "region" in kwargs:
-                        region = kwargs.get("region")
+                        region = str(kwargs.get("region"))
                         
                         shift = np.mean(self.get_region(region, block_num+1))
                         norm = np.std(
@@ -534,30 +547,28 @@ class MTP:
                 case "median" | "percent_median":
                     scale = kwargs.get("multiplier", 100)
                     if "region_high" in kwargs and "region_low" in kwargs:
-                        high = kwargs.get("region_high")
-                        low = kwargs.get("region_low")
+                        high = str(kwargs.get("region_high"))
+                        low = str(kwargs.get("region_low"))
                         
                         shift = np.median(self.get_region(low, block_num+1))
-                        norm = (np.median(self.get_region(high, block_num+1)) - 
-                               np.median(self.get_region(low, block_num+1)))
+                        norm = (np.median(self.get_region(high, block_num+1)) 
+                               - np.median(self.get_region(low, block_num+1)))
                     else:
                         raise KeyError(f"{method} requires region_high/low key")
                 case "mean" | "percent_mean":
                     scale = kwargs.get("multiplier", 100)
                     if "region_high" in kwargs and "region_low" in kwargs:
-                        high = kwargs.get("region_high")
-                        low = kwargs.get("region_low")
+                        high = str(kwargs.get("region_high"))
+                        low = str(kwargs.get("region_low"))
                         
                         shift = np.mean(self.get_region(low, block_num+1))
-                        norm = (np.mean(self.get_region(high, block_num+1)) - 
-                               np.mean(self.get_region(low, block_num+1)))
+                        norm = (np.mean(self.get_region(high, block_num+1)) 
+                               - np.mean(self.get_region(low, block_num+1)))
                     else:
                         raise KeyError(f"{method} requires region_high/low key")
                 case _:
                     raise ValueError(f"Invalid normalization method {method}.")
-            self.__data[block_num] = scale * (
-                (self.__data[block_num] - shift) / norm
-            )
+            self.__data[block_num] = scale * ((self.__data[block_num] - shift) / norm)
     
     # Routine plate statistic calculations
     def calc_z(self, region_high: str, region_low: str, 
@@ -584,15 +595,15 @@ class MTP:
         ValueError
             Invalid method of input chosen (valid options 'median' or 'mean')
         """
-        region_high = self.get_region(region_high, block)
-        region_low = self.get_region(region_low, block)
+        region_high_data = self.get_region(region_high, block)
+        region_low_data = self.get_region(region_low, block)
         
-        avg_high = np.mean(region_high)
-        avg_low = np.mean(region_low)
-        std_high = np.std(region_high, ddof=df)
-        std_low = np.std(region_low, ddof=df)
+        avg_high = np.mean(region_high_data)
+        avg_low = np.mean(region_low_data)
+        std_high = np.std(region_high_data, ddof=df)
+        std_low = np.std(region_low_data, ddof=df)
         
-        return float(1 - ((3*std_high + 3*std_low) / abs(avg_high - avg_low)))
+        return float(1 - ((3 * std_high + 3 * std_low) / abs(avg_high - avg_low)))
     
     def calc_sw(self, region_high: str, region_low: str, 
                 block: int = 1, method: str = "median") -> float:
@@ -618,18 +629,18 @@ class MTP:
         ValueError
             Invalid method of input chosen (valid options 'median' or 'mean')
         """
-        region_high = self.get_region(region_high, block)
-        region_low = self.get_region(region_low, block)
+        region_high_data = self.get_region(region_high, block)
+        region_low_data = self.get_region(region_low, block)
         
         if method == "median":
-            high = np.median(region_high)
-            low = np.median(region_low)
+            high = np.median(region_high_data)
+            low = np.median(region_low_data)
         elif method == "mean":
-            high = np.mean(region_high)
-            low = np.mean(region_low)
+            high = np.mean(region_high_data)
+            low = np.mean(region_low_data)
         else:
             raise ValueError(f"Invalid input {method} for method.")
-        return float(high/low) if high/low >= 1 else float(low/high)
+        return float(high / low) if high / low >= 1 else float(low / high)
     
     def calc_drift(self, region: str, block: int = 1) -> Tuple[float, float]:
         """Calculate the drift across rows/columns for a given region.
@@ -667,8 +678,7 @@ class MTP:
         return float(row_max-row_min), float(col_max-col_min)
     
     # Internal cutoff calculation used by cutoff methods
-    def _cutoff(self, region_data: List[float], 
-                df: int = 1, num_deviations: int = 3,
+    def _cutoff(self, region_data: List[float], df: int = 1, num_deviations: int = 3,
                 negative_cutoff: bool = False) -> float:
         
         data_avg = np.mean(region_data)
@@ -700,12 +710,11 @@ class MTP:
         float
             AVG+3SD or AVG-3SD, depending on negative_cutoff passed
         """
-        region_data = self.get_region(region, block)
+        region_data = self.get_region(region, block).tolist()
         return self._cutoff(region_data, df, num_deviations, negative_cutoff)
     
-    def calc_cutoff_excluded(self, region: str, 
-                             region_high: str, region_low: str, block: int = 1, 
-                             df: int = 1, num_deviations: int = 3, 
+    def calc_cutoff_excluded(self, region: str, region_high: str, region_low: str, 
+                             block: int = 1, df: int = 1, num_deviations: int = 3, 
                              negative_cutoff: bool = False) -> float:
         """Calculate cutoff using a regions average and stdev (remove outliers).
         

@@ -54,6 +54,9 @@
 ### 1.8
   - Refactored normalize code to simplify and replaced with single normalize
     method that alters the MTP in-place isntead of genereating a new one.
+### 1.8.1
+  - Fixed bug with metadata and default parameters.
+  - Updated/fixed type hints for multiple methods.
 
 ### TODO
   - Fix excluded cutoffs to not break when no hits found
