@@ -57,6 +57,8 @@
 ### 1.8.1
   - Fixed bug with metadata and default parameters.
   - Updated/fixed type hints for multiple methods.
+### 1.8.2
+  - Actually fixed metadata bug.
 
 ### TODO
   - Fix excluded cutoffs to not break when no hits found

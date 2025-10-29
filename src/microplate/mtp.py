@@ -105,7 +105,7 @@ class MTP:
         # Class accepts input of default keys for each well
         for row in range(1, self.__rows+1):
             for col in range(1, self.__cols+1):
-                self.metadata[MTP.index_to_row(row) + str(col)] = metadata_keys
+                self.metadata[MTP.index_to_row(row) + str(col)] = metadata_keys.copy()
         
         # If no input is specified, create a microplate pre-filled with zeros
         if input_files is None:
@@ -700,7 +700,7 @@ class MTP:
             Data block where data values will be compared to cutoff
         df : int, optional,
             Degrees of freedom for standard deviation calculation (default 1).
-        devs : int, optional
+        num_deviations : int, optional
             Number of standard deviations used for cutoff (default 3).
         negative_cutoff : bool, optional
             Return avg-3sd instead of avg+3sd
@@ -733,7 +733,7 @@ class MTP:
             Data block where data values will be compared to cutoff
         df : int, optional,
             Degrees of freedom for standard deviation calculation (default 1).
-        devs : int, optional
+        num_deviations : int, optional
             Number of standard deviations used for cutoff (default 3).
         negative_cutoff : bool, optional
             Return avg-3sd instead of avg+3sd

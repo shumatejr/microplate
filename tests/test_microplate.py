@@ -180,6 +180,7 @@ def test_normalization(plate_96, plate_384):
     
     plate_384.set_region("lo", "A2:P2")
     plate_384.set_region("hi", "A1:P1")
+    plate_384.set_region("sample", "A3:P24")
     
     plate_384_minmax = copy.deepcopy(plate_384)
     plate_384_minmax100 = copy.deepcopy(plate_384)
@@ -196,6 +197,11 @@ def test_normalization(plate_96, plate_384):
     assert float(plate_384_mean["P24"][0][0]) == 8.855210420841683
     
     assert (plate_384_minmax100[''] == 100 * plate_384_minmax['']).all()
+    
+    
+    print(plate_384_median)
+    print(plate_384_median.calc_cutoff_sd("sample"))
+    print(plate_384_median.get_hits(region="sample", cutoff=8.5))
 
 
 # def test_stats():
